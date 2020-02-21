@@ -332,7 +332,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                         operationFailed = true;
                     }
                 }
-                else
+
+                if (operationFailed)
                 {
                     // discard changes and don't send any signals
                     this.context.Rollback(initialOutboxPosition);

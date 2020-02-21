@@ -424,7 +424,6 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                 }
                 else
                 {
-                    this.State.MessageSorter.LabelOutgoingMessage(requestMessage, target.InstanceId, DateTime.UtcNow, this.EntityMessageReorderWindow);
                     eventName = EntityMessageEventNames.RequestMessageEventName;
                 }
 
@@ -441,11 +440,6 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
         {
             lock (this.outbox)
             {
-                if (message is RequestMessage requestMessage)
-                {
-                    this.State.MessageSorter.LabelOutgoingMessage(requestMessage, target.InstanceId, DateTime.UtcNow, this.EntityMessageReorderWindow);
-                }
-
                 this.outbox.Add(new ResultMessage()
                 {
                     Target = target,
@@ -529,6 +523,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                     }
                     else if (message is OperationMessage operationMessage)
                     {
+                        if (!operationMessage.EventContent.ScheduledTime.HasValue)
+                        {
+                            this.State.MessageSorter.LabelOutgoingMessage(operationMessage.EventContent, operationMessage.Target.InstanceId, DateTime.UtcNow, this.EntityMessageReorderWindow);
+                        }
+
                         this.Config.TraceHelper.SendingEntityMessage(
                             this.InstanceId,
                             this.ExecutionId,
@@ -574,7 +573,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
 
             public string EventName { get; set; }
 
-            public object EventContent { get; set; }
+            public RequestMessage EventContent { get; set; }
         }
 
         private class ResultMessage : OutgoingMessage
