@@ -32,11 +32,15 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             this.shim = shim;
         }
 
+        // The last serialized checkpoint of the entity state is always stored in
+        // the fields this.State.EntityExists (a boolean) and this.State.EntityState (a string).
+        // The current state is determined by this.CurrentStateAccess and this.CurrentState.
+
         internal enum StateAccess
         {
-            NotAccessed,
-            Accessed,
-            Deleted,
+            NotAccessed, // current state is same as last checkpoint in this.State
+            Accessed, // current state is stored in this.CurrentState
+            Deleted, // current state is deleted
         }
 
         internal StateAccess CurrentStateAccess { get; set; }
@@ -158,11 +162,15 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             }
         }
 
-        public void Rollback(int position)
+        public void Rollback(int outboxPositionBeforeOperation)
         {
+            // We discard the current state, which means we go back to the last serialized one
             this.CurrentStateAccess = StateAccess.NotAccessed;
             this.CurrentState = null;
-            this.outbox.RemoveRange(position, this.outbox.Count - position);
+
+            // we also roll back the list of outgoing messages,
+            // so any signals sent by this operation are discarded.
+            this.outbox.RemoveRange(outboxPositionBeforeOperation, this.outbox.Count - outboxPositionBeforeOperation);
         }
 
         void IDurableEntityContext.DeleteState()
@@ -257,7 +265,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             {
                 try
                 {
-                    JsonConvert.PopulateObject(this.State.EntityState, result, this.dataConverter.MessageSettings);
+                    JsonConvert.PopulateObject(this.State.EntityState, result);
                 }
                 catch (Exception e)
                 {

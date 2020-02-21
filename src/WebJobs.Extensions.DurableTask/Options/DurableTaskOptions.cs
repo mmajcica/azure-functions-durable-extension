@@ -183,13 +183,16 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
         public bool UseGracefulShutdown { get; set; } = false;
 
         /// <summary>
-        /// Whether exceptions inside entity operations cause the state of the entity to be rolled back. The rollback undoes all
-        /// internal effects of an operation (sent signals, and state creation, deletion, or modification).
-        /// However, it does not roll back external effects (such as I/O that was performed).
-        /// If true, the entity state is serialized after each individual operation that accessed the state, to create a snapshot
-        /// from which to restore the state if the next operation fails. If false, the entity state
-        /// is not serialized after each individual operation, but only after an entire batch of operations completes.
+        /// Controls whether an uncaught exception inside an entity operation should roll back the effects of the operation.
         /// </summary>
+        /// <remarks>
+        /// The rollback undoes all internal effects of an operation
+        /// (sent signals, and state creation, deletion, or modification).
+        /// However, it does not roll back external effects (such as I/O that was performed).
+        /// This setting can affect serialization overhead: if true, the entity state is serialized
+        /// after each individual operation. If false, the entity state is serialized
+        /// only after an entire batch of operations completes.
+        /// </remarks>
         public bool RollbackEntityStateOnExceptions { get; set; } = true;
 
         // Used for mocking the lifecycle notification helper.
