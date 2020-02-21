@@ -837,6 +837,37 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             return "ok";
         }
 
+        public static async Task<string> RollbackSignalsOnExceptions([OrchestrationTrigger] IDurableOrchestrationContext ctx)
+        {
+            // construct entity id and proxy
+            var entityId = ctx.GetInput<EntityId>();
+            var entity = ctx.CreateEntityProxy<TestEntityClasses.IFaultyEntity>(entityId);
+
+            // the receiver gets the signals sent from the entity with the entity current state
+            EntityId receiver = new EntityId(nameof(TestEntities.SchedulerEntity), entityId.EntityKey);
+
+            ctx.SignalEntity(entityId, "Set", 56);
+            ctx.SignalEntity(entityId, "Send", receiver); // 1:56
+            ctx.SignalEntity(entityId, "Set", 100);
+            ctx.SignalEntity(entityId, "Send", receiver); // 2:100
+            ctx.SignalEntity(entityId, "SendThenThrow", receiver);
+            ctx.SignalEntity(entityId, "Send", receiver); // 3:100
+            ctx.SignalEntity(entityId, "Set", 10);
+            ctx.SignalEntity(entityId, "SendThenThrow", receiver);
+            ctx.SignalEntity(entityId, "Send", receiver); // 4:10
+            ctx.SignalEntity(entityId, "SetThenThrow", 66);
+            ctx.SignalEntity(entityId, "Send", receiver); // 5:10
+            ctx.SignalEntity(entityId, "SendThenMakeUnserializable", receiver);
+            ctx.SignalEntity(entityId, "Send", receiver); // 6:10
+            ctx.SignalEntity(entityId, "Set", 11);
+            ctx.SignalEntity(entityId, "Send", receiver); // 7:11
+
+            Assert.Equal(7, await entity.GetNumberIncrementsSent()); // this was the total number of sends
+            Assert.Equal(11, await entity.Get()); // this was the last value written
+
+            return "ok";
+        }
+
         public static async Task<string> PollCounterEntity([OrchestrationTrigger] IDurableOrchestrationContext ctx)
         {
             // get the id of the two entities used by this test

@@ -55,6 +55,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
         {
             Task<int> Get();
 
+            Task<int> GetNumberIncrementsSent();
+
             Task Set(int value);
 
             Task SetToUnserializable();
@@ -62,6 +64,12 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             Task SetToUnDeserializable();
 
             Task SetThenThrow(int value);
+
+            Task Send(EntityId target);
+
+            Task SendThenThrow(EntityId target);
+
+            Task SendThenMakeUnserializable(EntityId target);
 
             Task Delete();
 
@@ -135,6 +143,10 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
 
                     break;
 
+                case "GetNumberIncrementsSent":
+                    context.Return(context.GetState<FaultyEntity>().NumberIncrementsSent);
+                    break;
+
                 case "Set":
                     var state = context.GetState<FaultyEntity>() ?? new FaultyEntity();
                     state.Value = context.GetInput<int>();
@@ -158,6 +170,25 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                     state3.Value = context.GetInput<int>();
                     context.SetState(state3);
                     throw new FaultyEntity.SerializableKaboom();
+
+                case "Send":
+                    var state4 = context.GetState<FaultyEntity>() ?? new FaultyEntity();
+                    state4.Send(context.GetInput<EntityId>());
+                    context.SetState(state4);
+                    return Task.CompletedTask;
+
+                case "SendThenThrow":
+                    var state5 = context.GetState<FaultyEntity>() ?? new FaultyEntity();
+                    state5.Send(context.GetInput<EntityId>());
+                    context.SetState(state5);
+                    throw new FaultyEntity.SerializableKaboom();
+
+                case "SendThenMakeUnserializable":
+                    var state6 = context.GetState<FaultyEntity>() ?? new FaultyEntity();
+                    state6.Send(context.GetInput<EntityId>());
+                    context.SetState(state6);
+                    state6.SetToUnserializable();
+                    return Task.CompletedTask;
 
                 case "Delete":
                     context.DeleteState();
@@ -258,9 +289,17 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             [JsonConverter(typeof(CustomJsonConverter))]
             public object ObjectWithFaultySerialization { get; set; }
 
+            [JsonProperty]
+            public int NumberIncrementsSent { get; set; }
+
             public Task<int> Get()
             {
                 return Task.FromResult(this.Value);
+            }
+
+            public Task<int> GetNumberIncrementsSent()
+            {
+                return Task.FromResult(this.NumberIncrementsSent);
             }
 
             public Task Set(int value)
@@ -287,6 +326,13 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                 return Task.CompletedTask;
             }
 
+            public Task Send(EntityId target)
+            {
+                var desc = $"{++this.NumberIncrementsSent}:{this.Value}";
+                Entity.Current.SignalEntity(target, desc);
+                return Task.CompletedTask;
+            }
+
             public Task Throw()
             {
                 this.Throw(true, true);
@@ -309,6 +355,20 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             {
                 this.Value = value;
                 this.Throw(false, false);
+                return Task.CompletedTask;
+            }
+
+            public Task SendThenThrow(EntityId target)
+            {
+                this.Send(target);
+                this.Throw(false, false);
+                return Task.CompletedTask;
+            }
+
+            public Task SendThenMakeUnserializable(EntityId target)
+            {
+                this.Send(target);
+                this.ObjectWithFaultySerialization = new UnserializableKaboom();
                 return Task.CompletedTask;
             }
 
