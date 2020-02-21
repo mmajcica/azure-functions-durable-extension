@@ -740,13 +740,26 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             bool isClassBased = entityId.EntityName == "ClassBasedFaultyEntity".ToLowerInvariant();
             async Task ExpectException(Task t)
             {
-                if (isClassBased)
+                try
                 {
-                    await Assert.ThrowsAsync<TargetInvocationException>(() => entity.SetThenThrow(333));
+                    await t;
+                    Assert.True(false, "expected exception");
                 }
-                else
+                catch (TargetInvocationException) when (isClassBased)
                 {
-                    await Assert.ThrowsAsync<TestEntityClasses.FaultyEntity.SerializableKaboom>(() => entity.SetThenThrow(333));
+                    // thrown by v2 when using DispatchAsync()
+                }
+                catch (TestEntityClasses.FaultyEntity.SerializableKaboom) when (!isClassBased)
+                {
+                    // thrown by v2 when not using DispatchAsync()
+                }
+                catch (FunctionFailedException)
+                {
+                    // thrown by v1
+                }
+                catch (Exception e)
+                {
+                    Assert.True(false, $"wrong exception: {e}");
                 }
             }
 
