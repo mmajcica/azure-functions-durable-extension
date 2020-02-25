@@ -36,6 +36,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
 
         public string InstanceId => this.instanceId;
 
+        public DateTime InstanceCreationTime => this.instanceCreationTime;
+
         internal IDurableClient InnerClient => this.innerClient;
 
         public async Task<DurableOrchestrationStatus> GetStatusAsync(bool showHistory = false, bool showHistoryOutput = false, bool showInput = true)
@@ -164,6 +166,37 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             while (sw.Elapsed < timeout);
 
             throw new TimeoutException($"Durable function '{this.functionName}' with instance ID '{this.instanceId}' failed to complete.");
+        }
+
+        public async Task<DurableOrchestrationStatus> WaitForStatusAsync(
+            ITestOutputHelper output,
+            OrchestrationRuntimeStatus targetStatus,
+            bool showHistory = false,
+            bool showHistoryOutput = false,
+            TimeSpan? timeout = null)
+        {
+            if (timeout == null)
+            {
+                timeout = Debugger.IsAttached ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+            }
+
+            Stopwatch sw = Stopwatch.StartNew();
+            do
+            {
+                output.WriteLine($"Waiting for instance {this.instanceId} to be in status: {targetStatus}.");
+
+                DurableOrchestrationStatus status = await this.GetStatusAsync(showHistory, showHistoryOutput);
+                if (status != null && status.RuntimeStatus == targetStatus)
+                {
+                    output.WriteLine($"{status.Name} (ID = {status.InstanceId}) in status: {targetStatus} after ~{sw.ElapsedMilliseconds}ms. Status = {status.RuntimeStatus}. Output = {status.Output}.");
+                    return status;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+            while (sw.Elapsed < timeout);
+
+            throw new TimeoutException($"Durable function '{this.functionName}' with instance ID '{this.instanceId}' failed to reach status {targetStatus}.");
         }
 
         public async Task<DurableOrchestrationStatus> WaitForCustomStatusAsync(TimeSpan timeout, ITestOutputHelper output, JToken expectedStatus)

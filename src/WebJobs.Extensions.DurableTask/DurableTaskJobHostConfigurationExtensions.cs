@@ -4,6 +4,7 @@
 using System;
 using System.Net.Http;
 using System.Threading;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener;
 #if !FUNCTIONS_V1
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -29,6 +30,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
         /// <returns>Returns the provided <see cref="IWebJobsBuilder"/>.</returns>
         public static IWebJobsBuilder AddDurableTask(this IWebJobsBuilder builder)
         {
+            return builder.AddDurableTask(false);
+        }
+
+        internal static IWebJobsBuilder AddDurableTask(this IWebJobsBuilder builder, bool isTest)
+        {
             if (builder == null)
             {
                 throw new ArgumentNullException(nameof(builder));
@@ -36,7 +42,19 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
 
             var serviceCollection = builder.AddExtension<DurableTaskExtension>()
                 .BindOptions<DurableTaskOptions>()
-                .Services.AddSingleton<IConnectionStringResolver, WebJobsConnectionStringProvider>();
+                .Services;
+
+            if (isTest)
+            {
+                serviceCollection.TryAddSingleton<IConnectionStringResolver, WebJobsConnectionStringProvider>();
+                serviceCollection.TryAddSingleton<IFunctionExecutorWrapper, FunctionExecutorWrapper>();
+            }
+            else
+            {
+                serviceCollection
+                     .AddSingleton<IConnectionStringResolver, WebJobsConnectionStringProvider>()
+                     .AddSingleton<IFunctionExecutorWrapper, FunctionExecutorWrapper>();
+            }
 
             serviceCollection.TryAddSingleton<IDurableHttpMessageHandlerFactory, DurableHttpMessageHandlerFactory>();
             serviceCollection.TryAddSingleton<IDurabilityProviderFactory, AzureStorageDurabilityProviderFactory>();
@@ -52,8 +70,9 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
         /// </summary>
         /// <param name="builder">The <see cref="IWebJobsBuilder"/> to configure.</param>
         /// <param name="options">The configuration options for this extension.</param>
+        /// <param name="isTest">Determines whether to add or try-add services injected only in tests.</param>
         /// <returns>Returns the provided <see cref="IWebJobsBuilder"/>.</returns>
-        public static IWebJobsBuilder AddDurableTask(this IWebJobsBuilder builder, IOptions<DurableTaskOptions> options)
+        internal static IWebJobsBuilder AddDurableTask(this IWebJobsBuilder builder, IOptions<DurableTaskOptions> options, bool isTest = true)
         {
             if (builder == null)
             {
@@ -65,7 +84,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                 throw new ArgumentNullException(nameof(options));
             }
 
-            builder.AddDurableTask();
+            builder.AddDurableTask(isTest);
             builder.Services.AddSingleton(options);
             return builder;
         }

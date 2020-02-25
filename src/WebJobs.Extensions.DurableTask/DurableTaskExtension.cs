@@ -14,9 +14,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using DurableTask.AzureStorage;
 using DurableTask.Core;
+using DurableTask.Core.Exceptions;
 using DurableTask.Core.History;
 using DurableTask.Core.Middleware;
 using Microsoft.Azure.WebJobs.Description;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.Azure.WebJobs.Host.Config;
 using Microsoft.Azure.WebJobs.Host.Executors;
@@ -61,6 +63,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
 
         private readonly bool isOptionsConfigured;
         private IDurabilityProviderFactory durabilityProviderFactory;
+        private IFunctionExecutorWrapper executorWrapper;
         private INameResolver nameResolver;
         private DurabilityProvider defaultDurabilityProvider;
         private TaskHubWorker taskHubWorker;
@@ -94,6 +97,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
         /// <param name="lifeCycleNotificationHelper">The lifecycle notification helper used for custom orchestration tracking.</param>
         /// <param name="messageSerializerSettingsFactory">The factory used to create <see cref="JsonSerializerSettings"/> for message settings.</param>
         /// <param name="errorSerializerSettingsFactory">The factory used to create <see cref="JsonSerializerSettings"/> for error settings.</param>
+        /// <param name="executionWrapper">The helper method used for executing functions.</param>
         public DurableTaskExtension(
             IOptions<DurableTaskOptions> options,
             ILoggerFactory loggerFactory,
@@ -103,7 +107,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             IDurableHttpMessageHandlerFactory durableHttpMessageHandlerFactory = null,
             ILifeCycleNotificationHelper lifeCycleNotificationHelper = null,
             IMessageSerializerSettingsFactory messageSerializerSettingsFactory = null,
-            IErrorSerializerSettingsFactory errorSerializerSettingsFactory = null)
+            IErrorSerializerSettingsFactory errorSerializerSettingsFactory = null,
+            IFunctionExecutorWrapper executionWrapper = null)
         {
             // Options will be null in Functions v1 runtime - populated later.
             this.Options = options?.Value ?? new DurableTaskOptions();
@@ -140,6 +145,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             {
                 errorSerializerSettingsFactory = new ErrorSerializerSettingsFactory();
             }
+
+            this.executorWrapper = executionWrapper ?? new FunctionExecutorWrapper();
 
             this.DataConverter = new MessagePayloadDataConverter(messageSerializerSettingsFactory, errorSerializerSettingsFactory);
 
@@ -415,7 +422,7 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                 throw new InvalidOperationException(message);
             }
 
-            return new TaskActivityShim(this, info.Executor, name);
+            return new TaskActivityShim(this, this.executorWrapper, info.Executor, name);
         }
 
         private async Task OrchestrationMiddleware(DispatchMiddlewareContext dispatchContext, Func<Task> next)
@@ -456,7 +463,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             }
 
             // 1. Start the functions invocation pipeline (billing, logging, bindings, and timeout tracking).
-            FunctionResult result = await info.Executor.TryExecuteAsync(
+            WrappedFunctionResult result = await this.executorWrapper.ExecuteFunction(
+                info.Executor,
                 new TriggeredFunctionData
                 {
                     TriggerValue = context,
@@ -479,6 +487,20 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
 #pragma warning restore CS0618
                 },
                 CancellationToken.None);
+
+            if (result.ExecutionStatus == WrappedFunctionResult.FunctionResultStatus.FunctionsRuntimeError)
+            {
+                this.TraceHelper.FunctionAborted(
+                    this.Options.HubName,
+                    context.FunctionName,
+                    context.InstanceId,
+                    $"An internal error occurred while attempting to execute this function. The execution will be aborted and retried. Details: {result.Exception}",
+                    functionType: FunctionType.Orchestrator);
+
+                // This will abort the execution and cause the message to go back onto the queue for re-processing
+                throw new SessionAbortedException(
+                    $"An internal error occurred while attempting to execute '{context.FunctionName}'.", result.Exception);
+            }
 
             if (!context.IsCompleted)
             {
@@ -618,12 +640,12 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
             }
 
             // 3. Start the functions invocation pipeline (billing, logging, bindings, and timeout tracking).
-            FunctionResult result = await entityShim.GetFunctionInfo().Executor.TryExecuteAsync(
+            WrappedFunctionResult result = await this.executorWrapper.ExecuteFunction(
+                entityShim.GetFunctionInfo().Executor,
                 new TriggeredFunctionData
                 {
                     TriggerValue = entityShim.Context,
-
-#pragma warning disable CS0618 // Approved for use by this extension
+                #pragma warning disable CS0618 // Approved for use by this extension
                     InvokeHandler = async userCodeInvoker =>
                     {
                         entityShim.SetFunctionInvocationCallback(userCodeInvoker);
@@ -649,9 +671,23 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask
                         entityContext.ThrowInternalExceptionIfAny();
                         entityContext.ThrowApplicationExceptionsIfAny();
                     },
-#pragma warning restore CS0618
+                #pragma warning restore CS0618
                 },
                 CancellationToken.None);
+
+            if (result.ExecutionStatus == WrappedFunctionResult.FunctionResultStatus.FunctionsRuntimeError)
+            {
+                this.TraceHelper.FunctionAborted(
+                    this.Options.HubName,
+                    entityContext.FunctionName,
+                    entityContext.InstanceId,
+                    $"An internal error occurred while attempting to execute this function. The execution will be aborted and retried. Details: {result.Exception}",
+                    functionType: FunctionType.Orchestrator);
+
+                // This will abort the execution and cause the message to go back onto the queue for re-processing
+                throw new SessionAbortedException(
+                    $"An internal error occurred while attempting to execute '{entityContext.FunctionName}'.", result.Exception);
+            }
 
             await entityContext.RunDeferredTasks();
 

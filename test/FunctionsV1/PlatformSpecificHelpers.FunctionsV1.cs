@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,7 +29,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             IDurableHttpMessageHandlerFactory durableHttpMessageHandler,
             ILifeCycleNotificationHelper lifeCycleNotificationHelper,
             IMessageSerializerSettingsFactory serializerSettings,
-            IApplicationLifetimeWrapper shutdownNotificationService = null)
+            IApplicationLifetimeWrapper shutdownNotificationService = null,
+            IFunctionExecutorWrapper executionWrapper = null)
         {
             var config = new JobHostConfiguration { HostId = "durable-task-host" };
             config.TypeLocator = TestHelpers.GetTypeLocator();
@@ -40,6 +42,11 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
 
             IDurabilityProviderFactory orchestrationServiceFactory = new AzureStorageDurabilityProviderFactory(options, connectionResolver);
 
+            if (executionWrapper == null)
+            {
+                executionWrapper = new FunctionExecutorWrapper();
+            }
+
             var extension = new DurableTaskExtension(
                 options,
                 loggerFactory,
@@ -48,7 +55,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                 shutdownNotificationService ?? new TestHostShutdownNotificationService(),
                 durableHttpMessageHandler,
                 lifeCycleNotificationHelper,
-                serializerSettings);
+                serializerSettings,
+                executionWrapper: executionWrapper);
             config.UseDurableTask(extension);
 
             // Mock INameResolver for not setting EnvironmentVariables.

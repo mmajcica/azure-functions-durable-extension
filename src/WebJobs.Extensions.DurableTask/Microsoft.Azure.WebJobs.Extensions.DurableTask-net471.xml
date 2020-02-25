@@ -1868,7 +1868,7 @@
             Obsolete. Please use an alternate constructor overload.
             </summary>
         </member>
-        <member name="M:Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskExtension.#ctor(Microsoft.Extensions.Options.IOptions{Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskOptions},Microsoft.Extensions.Logging.ILoggerFactory,Microsoft.Azure.WebJobs.INameResolver,Microsoft.Azure.WebJobs.Extensions.DurableTask.IDurabilityProviderFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.IApplicationLifetimeWrapper,Microsoft.Azure.WebJobs.Extensions.DurableTask.IDurableHttpMessageHandlerFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.ILifeCycleNotificationHelper,Microsoft.Azure.WebJobs.Extensions.DurableTask.IMessageSerializerSettingsFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.IErrorSerializerSettingsFactory)">
+        <member name="M:Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskExtension.#ctor(Microsoft.Extensions.Options.IOptions{Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskOptions},Microsoft.Extensions.Logging.ILoggerFactory,Microsoft.Azure.WebJobs.INameResolver,Microsoft.Azure.WebJobs.Extensions.DurableTask.IDurabilityProviderFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.IApplicationLifetimeWrapper,Microsoft.Azure.WebJobs.Extensions.DurableTask.IDurableHttpMessageHandlerFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.ILifeCycleNotificationHelper,Microsoft.Azure.WebJobs.Extensions.DurableTask.IMessageSerializerSettingsFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.IErrorSerializerSettingsFactory,Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener.IFunctionExecutorWrapper)">
             <summary>
             Initializes a new instance of the <see cref="T:Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskExtension"/>.
             </summary>
@@ -1881,6 +1881,7 @@
             <param name="lifeCycleNotificationHelper">The lifecycle notification helper used for custom orchestration tracking.</param>
             <param name="messageSerializerSettingsFactory">The factory used to create <see cref="T:Newtonsoft.Json.JsonSerializerSettings"/> for message settings.</param>
             <param name="errorSerializerSettingsFactory">The factory used to create <see cref="T:Newtonsoft.Json.JsonSerializerSettings"/> for error settings.</param>
+            <param name="executionWrapper">The helper method used for executing functions.</param>
         </member>
         <member name="P:Microsoft.Azure.WebJobs.Extensions.DurableTask.DurableTaskExtension.HubName">
             <summary>
@@ -2829,6 +2830,22 @@
             Gets a token for a resource.
             </summary>
             <returns>A <see cref="T:System.Threading.Tasks.Task`1"/> representing the result of the asynchronous operation.</returns>
+        </member>
+        <member name="T:Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener.IFunctionExecutorWrapper">
+            <summary>
+            Uses the command pattern to execute Durable Functions triggers in a way that provides more information about where
+            failures occur in the pipeline.
+            </summary>
+        </member>
+        <member name="M:Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener.IFunctionExecutorWrapper.ExecuteFunction(Microsoft.Azure.WebJobs.Host.Executors.ITriggeredFunctionExecutor,Microsoft.Azure.WebJobs.Host.Executors.TriggeredFunctionData,System.Threading.CancellationToken)">
+            <summary>
+            A wrapper method around <see cref="M:Microsoft.Azure.WebJobs.Host.Executors.ITriggeredFunctionExecutor.TryExecuteAsync(Microsoft.Azure.WebJobs.Host.Executors.TriggeredFunctionData,System.Threading.CancellationToken)"/>
+            that provides more information about function failures when they occur.
+            </summary>
+            <param name="executor">The object used to execute the function data.</param>
+            <param name="triggerData">The data provided as input to the function execution.</param>
+            <param name="cancellationToken">Cancellation token that can be used to cancel the function execution.</param>
+            <returns>The result of the function execution.</returns>
         </member>
         <member name="T:Microsoft.Azure.WebJobs.Extensions.DurableTask.OutOfProcOrchestrationShim">
             <summary>

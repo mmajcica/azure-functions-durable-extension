@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -28,19 +29,14 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             INameResolver nameResolver,
             IDurableHttpMessageHandlerFactory durableHttpMessageHandler,
             ILifeCycleNotificationHelper lifeCycleNotificationHelper,
-            IMessageSerializerSettingsFactory serializerSettingsFactory)
+            IMessageSerializerSettingsFactory serializerSettingsFactory,
+            IFunctionExecutorWrapper executionWrapper = null)
         {
             IHost host = new HostBuilder()
                 .ConfigureLogging(
                     loggingBuilder =>
                     {
                         loggingBuilder.AddProvider(loggerProvider);
-                    })
-                .ConfigureWebJobs(
-                    webJobsBuilder =>
-                    {
-                        webJobsBuilder.AddDurableTask(options, storageProvider);
-                        webJobsBuilder.AddAzureStorage();
                     })
                 .ConfigureServices(
                     serviceCollection =>
@@ -59,7 +55,19 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                         {
                             serviceCollection.AddSingleton(serializerSettingsFactory);
                         }
+
+                        if (executionWrapper != null)
+                        {
+                            serviceCollection.AddSingleton(executionWrapper);
+                        }
                     })
+                .ConfigureWebJobs(
+                    webJobsBuilder =>
+                    {
+                        webJobsBuilder.AddDurableTask(options, storageProvider);
+                        webJobsBuilder.AddAzureStorage();
+                    })
+
                 .Build();
 
             return new FunctionsV2HostWrapper(host);

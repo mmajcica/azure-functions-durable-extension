@@ -78,6 +78,17 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
         }
 
         /// <summary>
+        /// Helper function for the IDurableOrchestrationClientBinding test. Gets an IDurableOrchestrationClient.
+        /// </summary>
+        [NoAutomaticTrigger]
+        public static void GetDurableClient(
+            [DurableClient] IDurableClient client,
+            IDurableClient[] clientRef)
+        {
+            clientRef[0] = client;
+        }
+
+        /// <summary>
         /// Helper function for testing the JSON data that gets sent to out-of-proc client functions.
         /// </summary>
         [NoAutomaticTrigger]

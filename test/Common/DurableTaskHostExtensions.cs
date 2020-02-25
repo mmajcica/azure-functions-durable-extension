@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit.Abstractions;
@@ -95,6 +96,31 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             await host.CallAsync(startFunction, args);
             IDurableOrchestrationClient client = clientRef[0];
             return client;
+        }
+
+        /// <summary>
+        /// Helper function for getting a new TestDurableClient after restarting the Jobhost.
+        /// </summary>
+        public static async Task<TestDurableClient> GetNewTestClient(
+            this ITestHost host,
+            TestDurableClient oldClient)
+        {
+            var startFunction = typeof(ClientFunctions)
+                .GetMethod(nameof(ClientFunctions.GetDurableClient));
+
+            var clientRef = new IDurableClient[1];
+            var args = new Dictionary<string, object>
+            {
+                { "clientRef", clientRef },
+            };
+
+            await host.CallAsync(startFunction, args);
+            IDurableClient client = clientRef[0];
+            return new TestDurableClient(
+                client,
+                oldClient.FunctionName,
+                oldClient.InstanceId,
+                oldClient.InstanceCreationTime);
         }
     }
 }

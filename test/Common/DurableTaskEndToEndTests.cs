@@ -16,7 +16,6 @@ using Microsoft.Azure.WebJobs.Host.TestCommon;
 using Microsoft.Diagnostics.Tracing;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
-using Moq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
@@ -4341,6 +4340,96 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
 
             // This will throw if the JSON is not valid
             JObject.Parse(configJson);
+        }
+
+        [Fact]
+        [Trait("Category", PlatformSpecificHelpers.TestCategory)]
+        public async Task JobHostFailure_DuringOrchestration_Resumes()
+        {
+            string[] orchestratorFunctionNames =
+            {
+                nameof(TestOrchestrations.SayHelloWithActivity),
+            };
+
+            var executionWrapper = new MockFunctionExecutorWrapper(1);
+
+            TestDurableClient client = null;
+            using (var host = TestHelpers.GetJobHost(
+                this.loggerProvider,
+                nameof(this.JobHostFailure_DuringOrchestration_Resumes),
+                false,
+                executionWrapper: executionWrapper))
+            {
+                await host.StartAsync();
+
+                client = await host.StartOrchestratorAsync(orchestratorFunctionNames[0], "World", this.output);
+                var status = await client.WaitForStatusAsync(this.output, OrchestrationRuntimeStatus.Pending, timeout: TimeSpan.FromSeconds(10));
+
+                Assert.Equal(OrchestrationRuntimeStatus.Pending, status?.RuntimeStatus);
+
+                await host.StopAsync();
+            }
+
+            Assert.NotNull(client);
+
+            using (var host = TestHelpers.GetJobHost(
+                this.loggerProvider,
+                nameof(this.JobHostFailure_DuringOrchestration_Resumes),
+                false))
+            {
+                await host.StartAsync();
+                TestDurableClient newClient = await host.GetNewTestClient(
+                    client);
+                DurableOrchestrationStatus status = await newClient.WaitForCompletionAsync(this.output, timeout: TimeSpan.FromSeconds(10));
+                Assert.Equal(OrchestrationRuntimeStatus.Completed, status?.RuntimeStatus);
+                Assert.Equal("World", status?.Input);
+                Assert.Equal("Hello, World!", status?.Output);
+            }
+        }
+
+        [Fact]
+        [Trait("Category", PlatformSpecificHelpers.TestCategory)]
+        public async Task JobHostFailure_DuringActivity_Resumes()
+        {
+            string[] orchestratorFunctionNames =
+            {
+                nameof(TestOrchestrations.SayHelloWithActivity),
+            };
+
+            var executionWrapper = new MockFunctionExecutorWrapper(2);
+
+            TestDurableClient client = null;
+            using (var host = TestHelpers.GetJobHost(
+                this.loggerProvider,
+                nameof(this.JobHostFailure_DuringActivity_Resumes),
+                false,
+                executionWrapper: executionWrapper))
+            {
+                await host.StartAsync();
+
+                client = await host.StartOrchestratorAsync(orchestratorFunctionNames[0], "World", this.output);
+                var status = await client.WaitForStatusAsync(this.output, OrchestrationRuntimeStatus.Running, timeout: TimeSpan.FromSeconds(10));
+
+                Assert.Equal(OrchestrationRuntimeStatus.Running, status?.RuntimeStatus);
+
+                await host.StopAsync();
+            }
+
+            Assert.NotNull(client);
+
+            using (var host = TestHelpers.GetJobHost(
+                this.loggerProvider,
+                nameof(this.JobHostFailure_DuringActivity_Resumes),
+                false))
+            {
+                await host.StartAsync();
+                TestDurableClient newClient = await host.GetNewTestClient(
+                    client);
+                DurableOrchestrationStatus status = await newClient.WaitForCompletionAsync(this.output, timeout: TimeSpan.FromSeconds(10));
+                Assert.Equal(OrchestrationRuntimeStatus.Completed, status?.RuntimeStatus);
+                Assert.Equal("World", status?.Input);
+                Assert.Equal("Hello, World!", status?.Output);
+            }
         }
 
         private static StringBuilder GenerateMediumRandomStringPayload()

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using DurableTask.AzureStorage;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask.Listener;
 using Microsoft.Azure.WebJobs.Host.TestCommon;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -49,7 +50,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             ILifeCycleNotificationHelper lifeCycleNotificationHelper = null,
             IMessageSerializerSettingsFactory serializerSettings = null,
             bool? localRpcEndpointEnabled = false,
-            DurableTaskOptions options = null)
+            DurableTaskOptions options = null,
+            IFunctionExecutorWrapper executionWrapper = null)
         {
             switch (storageProviderType)
             {
@@ -131,7 +133,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                 nameResolver,
                 durableHttpMessageHandler,
                 lifeCycleNotificationHelper,
-                serializerSettings);
+                serializerSettings,
+                executionWrapper);
         }
 
         public static ITestHost GetJobHostWithOptions(
@@ -141,7 +144,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
             INameResolver nameResolver = null,
             IDurableHttpMessageHandlerFactory durableHttpMessageHandler = null,
             ILifeCycleNotificationHelper lifeCycleNotificationHelper = null,
-            IMessageSerializerSettingsFactory serializerSettings = null)
+            IMessageSerializerSettingsFactory serializerSettings = null,
+            IFunctionExecutorWrapper executionWrapper = null)
         {
             if (serializerSettings == null)
             {
@@ -162,7 +166,8 @@ namespace Microsoft.Azure.WebJobs.Extensions.DurableTask.Tests
                 testNameResolver,
                 durableHttpMessageHandler,
                 lifeCycleNotificationHelper,
-                serializerSettings);
+                serializerSettings,
+                executionWrapper: executionWrapper);
         }
 
         public static DurableTaskOptions GetDurableTaskOptionsForStorageProvider(string storageProvider)
